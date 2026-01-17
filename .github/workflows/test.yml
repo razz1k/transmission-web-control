@@ -157,9 +157,7 @@ jobs:
               
               # Configure and start Transmission
               mkdir -p /etc/transmission /var/lib/transmission/downloads
-              cat > /etc/transmission/settings.json << 'EOF'
-{\"download-dir\":\"/var/lib/transmission/downloads\",\"rpc-enabled\":true,\"rpc-bind-address\":\"0.0.0.0\",\"rpc-port\":9091,\"rpc-whitelist-enabled\":false,\"rpc-authentication-required\":false}
-EOF
+              echo '{\"download-dir\":\"/var/lib/transmission/downloads\",\"rpc-enabled\":true,\"rpc-bind-address\":\"0.0.0.0\",\"rpc-port\":9091,\"rpc-whitelist-enabled\":false,\"rpc-authentication-required\":false}' > /etc/transmission/settings.json
               export TRANSMISSION_WEB_HOME=/usr/share/transmission/web
               transmission-daemon -g /etc/transmission
               sleep 3
