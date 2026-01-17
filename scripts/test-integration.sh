@@ -13,11 +13,18 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # OpenWRT version to test
-OPENWRT_VERSION="${OPENWRT_VERSION:-23.05.0}"
-OPENWRT_ARCH="${OPENWRT_ARCH:-x86-64}"
-OPENWRT_IMAGE="openwrt/rootfs:${OPENWRT_ARCH}-openwrt-${OPENWRT_VERSION}"
+# Target device: Routerich AX3000 (mediatek/filogic)
+# Specs: MT7981BA (ARMv8), 256 MB RAM, OpenWrt 24.10
+# Note: ARM64 images use format "armsr-armv8-SNAPSHOT", x86_64 uses "x86_64-openwrt-24.10"
+OPENWRT_VERSION="${OPENWRT_VERSION:-SNAPSHOT}"
+OPENWRT_ARCH="${OPENWRT_ARCH:-armsr-armv8}"
+OPENWRT_IMAGE="ghcr.io/openwrt/rootfs:${OPENWRT_ARCH}-${OPENWRT_VERSION}"
+
+# Memory limit to simulate Routerich AX3000 (256 MB RAM)
+MEMORY_LIMIT="${MEMORY_LIMIT:-256m}"
 
 echo "Using OpenWRT image: $OPENWRT_IMAGE"
+echo "Memory limit: $MEMORY_LIMIT (Routerich AX3000 has 256 MB RAM)"
 
 # Pull OpenWRT image
 echo "Pulling OpenWRT image..."
@@ -30,10 +37,12 @@ docker pull "$OPENWRT_IMAGE" || {
 CONTAINER_NAME="transmission-web-control-test-$$"
 echo "Creating test container: $CONTAINER_NAME"
 
-# Start container in background
+# Start container in background with memory limit
 docker run -d \
   --name "$CONTAINER_NAME" \
   --privileged \
+  --memory="$MEMORY_LIMIT" \
+  --memory-swap="$MEMORY_LIMIT" \
   -p 9091:9091 \
   -v "$PROJECT_ROOT/src:/tmp/webui:ro" \
   "$OPENWRT_IMAGE" \
@@ -52,13 +61,21 @@ cleanup() {
 trap cleanup EXIT
 
 # Install Transmission and dependencies
+# Note: SNAPSHOT uses APK, stable versions use opkg
 echo "Installing Transmission in container..."
 docker exec "$CONTAINER_NAME" sh -c "
-  opkg update || true
-  opkg install transmission-daemon transmission-web uhttpd || {
-    echo 'Failed to install Transmission'
+  if command -v apk >/dev/null 2>&1; then
+    echo 'Using APK package manager (SNAPSHOT)'
+    apk update
+    apk add transmission-daemon transmission-web
+  elif command -v opkg >/dev/null 2>&1; then
+    echo 'Using opkg package manager'
+    opkg update
+    opkg install transmission-daemon transmission-web
+  else
+    echo 'No package manager found'
     exit 1
-  }
+  fi
 " || {
   echo "✗ Failed to install Transmission"
   exit 1
@@ -78,11 +95,18 @@ docker exec "$CONTAINER_NAME" sh -c "
 # Start Transmission daemon
 echo "Starting Transmission daemon..."
 docker exec "$CONTAINER_NAME" sh -c "
-  /etc/init.d/transmission stop || true
-  /etc/init.d/transmission start || {
-    echo 'Failed to start Transmission'
-    exit 1
-  }
+  mkdir -p /etc/transmission /var/lib/transmission/downloads
+  cat > /etc/transmission/settings.json << 'EOF'
+{\"download-dir\":\"/var/lib/transmission/downloads\",\"rpc-enabled\":true,\"rpc-bind-address\":\"0.0.0.0\",\"rpc-port\":9091,\"rpc-whitelist-enabled\":false,\"rpc-authentication-required\":false}
+EOF
+  export TRANSMISSION_WEB_HOME=/usr/share/transmission/web
+  # Try init.d first (stable versions), fallback to direct start (SNAPSHOT)
+  if [ -f /etc/init.d/transmission ]; then
+    /etc/init.d/transmission stop 2>/dev/null || true
+    /etc/init.d/transmission start
+  else
+    transmission-daemon -g /etc/transmission
+  fi
   sleep 3
 " || {
   echo "✗ Failed to start Transmission"

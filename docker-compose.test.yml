@@ -1,42 +1,112 @@
-version: '3.8'
-
 services:
-  # Development environment with SSH access
+  # Development environment with SSH access (x86_64)
   openwrt-dev:
-    image: openwrt/rootfs:x86-64-openwrt-23.05.0
+    image: ghcr.io/openwrt/rootfs:x86_64-openwrt-24.10
     container_name: transmission-web-control-dev
     privileged: true
-    ports:
-      - "9091:9091"
-      - "2222:22"
+    network_mode: host
     volumes:
       - ./src:/tmp/webui
       - ./tests/integration/openwrt-test.sh:/tmp/test.sh:ro
-    command: /bin/sh -c "
-      /sbin/init &
-      sleep 5 &&
-      opkg update &&
-      opkg install bash dropbear transmission-daemon transmission-web &&
-      mkdir -p /usr/share/transmission/web &&
-      cp -r /tmp/webui/* /usr/share/transmission/web/ &&
-      chmod -R 755 /usr/share/transmission/web &&
-      echo 'root:root' | chpasswd &&
-      /etc/init.d/dropbear start &&
-      /etc/init.d/transmission start &&
-      echo 'SSH ready on port 2222 (user: root, password: root)' &&
-      echo 'Transmission ready on port 9091' &&
-      tail -f /dev/null
-    "
+      - ./.ssh/test_key.pub:/tmp/authorized_keys:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /var/lock /var/run /tmp /etc/transmission /var/lib/transmission/downloads
+        /sbin/init &
+        sleep 15
+        opkg update && opkg install bash dropbear transmission-daemon transmission-web || echo "Retrying..." && sleep 5 && opkg install transmission-daemon transmission-web || echo "Some packages failed"
+        mkdir -p /usr/share/transmission/web
+        cp -r /tmp/webui/* /usr/share/transmission/web/
+        chmod -R 755 /usr/share/transmission/web
+        echo -e "root\nroot" | passwd root
+        mkdir -p /etc/dropbear
+        cp /tmp/authorized_keys /etc/dropbear/authorized_keys
+        chmod 600 /etc/dropbear/authorized_keys
+        rm -f /etc/dropbear/dropbear_*_host_key
+        dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
+        dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key
+        dropbear -p 2222
+        cat > /etc/transmission/settings.json << 'SETTINGS'
+        {"download-dir":"/var/lib/transmission/downloads","rpc-enabled":true,"rpc-bind-address":"0.0.0.0","rpc-port":9091,"rpc-whitelist-enabled":false,"rpc-authentication-required":false}
+        SETTINGS
+        export TRANSMISSION_WEB_HOME=/usr/share/transmission/web
+        transmission-daemon -g /etc/transmission
+        echo '================================'
+        echo 'SSH: ssh -p 2222 root@localhost (pass: root)'
+        echo 'Web: http://localhost:9091/transmission/web/'
+        echo '================================'
+        tail -f /dev/null
     environment:
-      - OPENWRT_VERSION=23.05.0
-    networks:
-      - test-network
+      - OPENWRT_VERSION=24.10.0
+      - TRANSMISSION_WEB_HOME=/usr/share/transmission/web
     profiles:
       - dev
 
+  # Development environment for ARM64 (requires QEMU or ARM host)
+  # Target device: Routerich AX3000 (mediatek/filogic)
+  # Specs: MT7981BA (ARMv8), 256 MB RAM, 128 MB NAND, OpenWrt 24.10
+  # Note: ARM64 images use tags like armsr-armv8-SNAPSHOT (no version suffix)
+  # Image uses non-standard arch "aarch64_generic", pull manually if needed:
+  # docker pull ghcr.io/openwrt/rootfs@sha256:a144fd647eb90b68f050c0a74b56a122cb5cc07345886300852a64168f7065a1
+  # docker tag ... ghcr.io/openwrt/rootfs:armsr-armv8-SNAPSHOT
+  openwrt-dev-arm64:
+    image: ghcr.io/openwrt/rootfs:armsr-armv8-SNAPSHOT
+    container_name: transmission-web-control-dev-arm64
+    privileged: true
+    network_mode: host
+    # Memory limit to simulate Routerich AX3000 (256 MB RAM)
+    mem_limit: 256m
+    memswap_limit: 256m
+    volumes:
+      - ./src:/tmp/webui
+      - ./tests/integration/openwrt-test.sh:/tmp/test.sh:ro
+      - ./.ssh/test_key.pub:/tmp/authorized_keys:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /var/lock /var/run /tmp /etc/transmission /var/lib/transmission/downloads
+        /sbin/init &
+        sleep 15
+        # OpenWrt SNAPSHOT uses APK instead of opkg
+        apk update && apk add bash dropbear transmission-daemon transmission-web || echo "Some packages failed"
+        mkdir -p /usr/share/transmission/web
+        cp -r /tmp/webui/* /usr/share/transmission/web/
+        chmod -R 755 /usr/share/transmission/web
+        echo -e "root\nroot" | passwd root
+        mkdir -p /etc/dropbear
+        cp /tmp/authorized_keys /etc/dropbear/authorized_keys
+        chmod 600 /etc/dropbear/authorized_keys
+        rm -f /etc/dropbear/dropbear_*_host_key
+        dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
+        dropbearkey -t ed25519 -f /etc/dropbear/dropbear_ed25519_host_key
+        dropbear -p 2222
+        cat > /etc/transmission/settings.json << 'SETTINGS'
+        {"download-dir":"/var/lib/transmission/downloads","rpc-enabled":true,"rpc-bind-address":"0.0.0.0","rpc-port":9091,"rpc-whitelist-enabled":false,"rpc-authentication-required":false}
+        SETTINGS
+        export TRANSMISSION_WEB_HOME=/usr/share/transmission/web
+        transmission-daemon -g /etc/transmission
+        echo '================================'
+        echo 'ARM64 OpenWRT SNAPSHOT (armsr-armv8)'
+        echo 'Target: Routerich AX3000 (mediatek/filogic)'
+        echo 'Memory: 256 MB (hardware limit)'
+        echo 'SSH: ssh -p 2222 root@localhost'
+        echo 'Web: http://localhost:9091/transmission/web/'
+        echo '================================'
+        tail -f /dev/null
+    environment:
+      - OPENWRT_VERSION=SNAPSHOT
+      - TRANSMISSION_WEB_HOME=/usr/share/transmission/web
+      - TARGET_DEVICE=routerich-ax3000
+      - TARGET_PLATFORM=mediatek/filogic
+    profiles:
+      - dev-arm64
+
   # Test environment (CI mode)
   openwrt-test:
-    image: openwrt/rootfs:x86-64-openwrt-23.05.0
+    image: ghcr.io/openwrt/rootfs:x86_64-openwrt-24.10
     container_name: transmission-web-control-test
     privileged: true
     ports:
@@ -44,12 +114,14 @@ services:
     volumes:
       - ./src:/tmp/webui:ro
       - ./tests/integration/openwrt-test.sh:/tmp/test.sh:ro
-    command: /bin/sh -c "
-      /sbin/init &
-      sleep 10 &&
-      chmod +x /tmp/test.sh &&
-      /tmp/test.sh
-    "
+    command:
+      - /bin/sh
+      - -c
+      - |
+        /sbin/init &
+        sleep 10
+        chmod +x /tmp/test.sh
+        /tmp/test.sh
     environment:
       - OPENWRT_VERSION=23.05.0
     networks:
@@ -66,11 +138,13 @@ services:
     environment:
       - TEST_URL=http://openwrt-test:9091
       - CI=true
-    command: sh -c "
-      npm install &&
-      npx playwright install --with-deps &&
-      npm run test:functional
-    "
+    command:
+      - sh
+      - -c
+      - |
+        npm install
+        npx playwright install --with-deps
+        npm run test:functional
     networks:
       - test-network
 

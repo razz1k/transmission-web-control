@@ -62,38 +62,129 @@ jobs:
     name: OpenWRT Integration Test
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        openwrt-version: ['22.03.3', '23.05.0']
-        arch: ['x86-64']
+        include:
+          # x86_64 - 3 major OpenWRT versions
+          - arch: 'x86_64'
+            openwrt-version: '22.03.7'
+            memory-limit: ''
+          - arch: 'x86_64'
+            openwrt-version: '23.05.5'
+            memory-limit: ''
+          - arch: 'x86_64-openwrt'
+            openwrt-version: '24.10'
+            memory-limit: ''
+          # ARM64 for mediatek/filogic - Target: Routerich AX3000
+          # Device specs: MT7981BA (ARMv8), 256 MB RAM, OpenWrt 24.10
+          # Note: ARM64 images use different tag format (no version suffix)
+          - arch: 'armsr-armv8'
+            openwrt-version: 'SNAPSHOT'
+            memory-limit: '256m'
     steps:
       - uses: actions/checkout@v4
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      - name: Set up QEMU for ARM64
+        if: contains(matrix.arch, 'arm')
+        uses: docker/setup-qemu-action@v3
+      
       - name: Pull OpenWRT image
         run: |
-          docker pull openwrt/rootfs:${ARCH}-openwrt-${OPENWRT_VERSION}
+          IMAGE_TAG="${ARCH}-${OPENWRT_VERSION}"
+          echo "Pulling image: ghcr.io/openwrt/rootfs:${IMAGE_TAG}"
+          
+          # ARM64 SNAPSHOT uses non-standard arch "aarch64_generic", need to pull by digest
+          if [[ "$ARCH" == "armsr-armv8" && "$OPENWRT_VERSION" == "SNAPSHOT" ]]; then
+            echo "ARM64 SNAPSHOT: pulling by manifest digest..."
+            # Get the aarch64_generic manifest digest
+            DIGEST=$(docker manifest inspect ghcr.io/openwrt/rootfs:${IMAGE_TAG} 2>/dev/null | \
+              jq -r '.manifests[] | select(.platform.architecture == "aarch64_generic") | .digest' || echo "")
+            if [ -n "$DIGEST" ]; then
+              docker pull ghcr.io/openwrt/rootfs@${DIGEST}
+              docker tag ghcr.io/openwrt/rootfs@${DIGEST} ghcr.io/openwrt/rootfs:${IMAGE_TAG}
+            else
+              echo "Failed to get digest, trying direct pull..."
+              docker pull ghcr.io/openwrt/rootfs:${IMAGE_TAG} || exit 1
+            fi
+          else
+            docker pull ghcr.io/openwrt/rootfs:${IMAGE_TAG}
+          fi
         env:
           ARCH: ${{ matrix.arch }}
           OPENWRT_VERSION: ${{ matrix.openwrt-version }}
       
       - name: Run integration test
         run: |
+          MEMORY_OPTS=""
+          if [ -n "$MEMORY_LIMIT" ]; then
+            MEMORY_OPTS="--memory=$MEMORY_LIMIT --memory-swap=$MEMORY_LIMIT"
+            echo "Memory limit: $MEMORY_LIMIT (simulating Routerich AX3000)"
+          fi
+          
+          IMAGE_TAG="${ARCH}-${OPENWRT_VERSION}"
+          echo "Running tests with image: ghcr.io/openwrt/rootfs:${IMAGE_TAG}"
+          
           docker run --rm \
             --privileged \
+            $MEMORY_OPTS \
             -v ${{ github.workspace }}/src:/tmp/webui:ro \
-            -v ${{ github.workspace }}/tests/integration/openwrt-test.sh:/tmp/test.sh:ro \
-            openwrt/rootfs:${ARCH}-openwrt-${OPENWRT_VERSION} \
+            ghcr.io/openwrt/rootfs:${IMAGE_TAG} \
             /bin/sh -c "
               /sbin/init &
-              sleep 10 &&
-              chmod +x /tmp/test.sh &&
-              /tmp/test.sh
+              sleep 10
+              
+              # Install packages (APK for SNAPSHOT, opkg for stable)
+              if command -v apk >/dev/null 2>&1; then
+                echo 'Using APK package manager (SNAPSHOT)'
+                apk update
+                apk add transmission-daemon transmission-web
+              elif command -v opkg >/dev/null 2>&1; then
+                echo 'Using opkg package manager'
+                opkg update
+                opkg install transmission-daemon transmission-web
+              else
+                echo 'No package manager found'
+                exit 1
+              fi
+              
+              # Copy web interface
+              mkdir -p /usr/share/transmission/web
+              cp -r /tmp/webui/* /usr/share/transmission/web/
+              chmod -R 755 /usr/share/transmission/web
+              
+              # Configure and start Transmission
+              mkdir -p /etc/transmission /var/lib/transmission/downloads
+              cat > /etc/transmission/settings.json << 'EOF'
+{\"download-dir\":\"/var/lib/transmission/downloads\",\"rpc-enabled\":true,\"rpc-bind-address\":\"0.0.0.0\",\"rpc-port\":9091,\"rpc-whitelist-enabled\":false,\"rpc-authentication-required\":false}
+EOF
+              export TRANSMISSION_WEB_HOME=/usr/share/transmission/web
+              transmission-daemon -g /etc/transmission
+              sleep 3
+              
+              # Verify
+              echo 'Checking Transmission daemon...'
+              pgrep -f transmission-daemon || { echo 'Transmission not running'; exit 1; }
+              echo 'Transmission daemon is running'
+              
+              echo 'Checking web interface...'
+              wget -q -O - http://localhost:9091/transmission/web/ | grep -q 'Transmission' || { echo 'Web interface not accessible'; exit 1; }
+              echo 'Web interface is accessible'
+              
+              echo 'Checking required files...'
+              test -f /usr/share/transmission/web/index.html || { echo 'Missing index.html'; exit 1; }
+              test -f /usr/share/transmission/web/tr-web-control/config.js || { echo 'Missing config.js'; exit 1; }
+              echo 'All required files present'
+              
+              echo ''
+              echo 'All integration tests passed!'
             "
         env:
           ARCH: ${{ matrix.arch }}
           OPENWRT_VERSION: ${{ matrix.openwrt-version }}
+          MEMORY_LIMIT: ${{ matrix.memory-limit }}
 
   functional:
     name: Functional Tests
@@ -116,7 +207,7 @@ jobs:
       
       - name: Start OpenWRT test environment
         run: |
-          docker-compose -f docker-compose.test.yml up -d openwrt-test
+          docker compose -f docker-compose.test.yml up -d openwrt-test
           sleep 30
       
       - name: Run functional tests
@@ -134,4 +225,4 @@ jobs:
       
       - name: Cleanup
         if: always()
-        run: docker-compose -f docker-compose.test.yml down
+        run: docker compose -f docker-compose.test.yml down
