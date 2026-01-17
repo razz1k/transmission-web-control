@@ -7,3 +7,5 @@ package.json
 Gruntfile.js
 .DS_Store
 testFile/
+NOTES.md
+PLAN.md

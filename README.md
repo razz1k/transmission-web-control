@@ -1,11 +1,11 @@
-## 注意：项目不再维护
-> 因项目时间久远，所涉及的技术已过于陈旧，加上本人已没有精力在本项目上进行更新，现决定归档本项目，大家可以使用其他替代项目。
+## Внимание: проект больше не поддерживается
+> Из-за того, что проект устарел, используемые технологии слишком старые, и у меня больше нет сил для обновления этого проекта, я решил заархивировать проект. Вы можете использовать другие альтернативные проекты.
 >
-> 如您还需要继续使用本项目，目前最好的方式是在 Docker 里使用 2.94 版本，然后设定环境变量指定WebUI，具体可参考（https://www.cnblogs.com/ronggang/p/18788723 ）；或者使用其他已集成的项目。
+> Если вы все еще хотите использовать этот проект, лучший способ - использовать версию 2.94 в Docker, а затем установить переменную окружения для указания WebUI. Подробности можно найти здесь (https://www.cnblogs.com/ronggang/p/18788723); или использовать другие интегрированные проекты.
 >
-> 感谢大家长期以来的支持。
+> Спасибо за долгую поддержку.
 > 
-> 2025.06.01 栽培者 
+> 2025.06.01 栽培者
 
 ----
 
@@ -20,32 +20,32 @@
 ----
 ## [English Introduction](https://github.com/ronggang/transmission-web-control/wiki)
 
-## 国内镜像源
+## Зеркало для Китая
 - https://gitee.com/culturist/transmission-web-control
 
-## 关于
-本项目主要目的是想加强[Transmission](https://www.transmissionbt.com/) Web的操作能力，本项目原本在[Google Code](https://code.google.com/p/transmission-control/)托管，现迁移至GitHub。
-本项目设计之初仅针对PT站，因此增加了 Tracker 服务器分组及状态，但这不并适用于普通BT种子。
+## О проекте
+Основная цель этого проекта - улучшить возможности управления [Transmission](https://www.transmissionbt.com/) через веб-интерфейс. Проект изначально размещался на [Google Code](https://code.google.com/p/transmission-control/), а теперь перенесен на GitHub.
+Проект изначально разрабатывался специально для PT-сайтов, поэтому добавлена группировка и статус серверов Tracker, но это не подходит для обычных BT-торрентов.
 
-另外，本项目仅为一套自定义的WebUI，不能代替 Transmission 工作，用户需要自行安装 Transmission 后才可正常使，Transmission 安装方法请移步至官网：https://www.transmissionbt.com/
+Кроме того, этот проект представляет собой только пользовательский веб-интерфейс и не может заменить Transmission. Пользователям необходимо самостоятельно установить Transmission перед использованием. Инструкции по установке Transmission можно найти на официальном сайте: https://www.transmissionbt.com/
 
-## 界面预览
+## Предварительный просмотр интерфейса
 ![screenshots](https://user-images.githubusercontent.com/8065899/38598199-0d2e684c-3d8e-11e8-8b21-3cd1f3c7580a.png)
 
-## 安装方法及更多内容，请参考：[中文帮助](https://github.com/ronggang/transmission-web-control/wiki/Home-CN) 
+## Методы установки и дополнительная информация, см.: [Русская справка](https://github.com/ronggang/transmission-web-control/wiki/Home-CN) 
 ### DSM7.0
-在这个版本中，需要额外修改权限以实现自动更新的功能
-在 `root` 权限下执行以下命令，其中：
- - `YOUR_USERNAME` 替换为你登录和更新脚本时候选择的用户
- - `/var/packages/transmission/target/share/transmission/web/` 这串路径为 transmission 的安装路径（默认应该是这个）
+В этой версии требуется дополнительно изменить права доступа для реализации функции автоматического обновления
+Выполните следующие команды с правами `root`, где:
+ - `YOUR_USERNAME` замените на пользователя, которого вы выбрали при входе и обновлении скрипта
+ - `/var/packages/transmission/target/share/transmission/web/` - это путь установки transmission (по умолчанию должен быть таким)
 ```shell
 sed -i '/sc-transmission/s/$/YOUR_USERNAME/' /etc/group
 chown sc-transmission:sc-transmission /var/packages/transmission/target/share/transmission/web/* -R
 chmod 774 /var/packages/transmission/target/share/transmission/web/* -R
 ```
 
-## 更新日志 [查看](https://github.com/ronggang/transmission-web-control/blob/master/CHANGELOG.md)
+## Журнал изменений [Просмотр](https://github.com/ronggang/transmission-web-control/blob/master/CHANGELOG.md)
 
-## 项目日常维护
+## Ежедневное обслуживание проекта
 * 栽培者
 * DarkAlexWang
