@@ -1,4 +1,4 @@
-.PHONY: help test test-lint test-shellcheck test-integration test-functional test-all install clean docker-test docker-dev docker-dev-arm64 docker-dev-stop docker-ssh docker-clean
+.PHONY: help test test-lint test-shellcheck test-integration test-functional test-all install install-hooks clean docker-test docker-dev docker-dev-arm64 docker-dev-stop docker-ssh docker-clean docker-shellcheck docker-lint
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -9,6 +9,10 @@ help: ## Show this help message
 install: ## Install dependencies
 	npm install
 
+install-hooks: ## Install git hooks for pre-push validation
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed. Pre-push hook will run shellcheck before push."
+
 test: test-all ## Run all tests (alias for test-all)
 
 test-all: test-lint test-shellcheck test-integration test-functional ## Run all tests
@@ -16,8 +20,12 @@ test-all: test-lint test-shellcheck test-integration test-functional ## Run all 
 test-lint: ## Run linting tests
 	./scripts/test-lint.sh
 
-test-shellcheck: ## Run shellcheck on installation scripts
-	shellcheck release/*.sh || echo "Warning: shellcheck not installed, skipping"
+test-shellcheck: ## Run shellcheck on installation scripts (local)
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		shellcheck -x release/*.sh; \
+	else \
+		echo "shellcheck not installed locally, use: make docker-shellcheck"; \
+	fi
 
 test-integration: ## Run OpenWRT integration tests
 	./scripts/test-integration.sh
@@ -67,6 +75,12 @@ docker-ssh: ## Connect to dev container via SSH
 
 docker-clean: ## Clean up Docker test containers
 	docker compose -f docker-compose.test.yml --profile dev down -v
+
+docker-shellcheck: ## Run shellcheck via Docker
+	docker compose -f docker-compose.lint.yml run --rm shellcheck
+
+docker-lint: ## Run all linters via Docker
+	docker compose -f docker-compose.lint.yml run --rm lint-all
 
 clean: ## Clean test artifacts
 	rm -rf node_modules

@@ -1,0 +1,65 @@
+#!/bin/bash
+# Git pre-push hook for transmission-web-control
+# Runs shellcheck on release scripts before push
+#
+# To install: git config core.hooksPath .githooks
+# Or: make install-hooks
+
+set -e
+
+echo "=== Pre-push hook: Running linters ==="
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+ERRORS=0
+
+# Check if Docker is available
+if command -v docker &> /dev/null; then
+    echo ""
+    echo "--- Shellcheck (via Docker) ---"
+    if docker run --rm -v "$(pwd)/release:/scripts:ro" koalaman/shellcheck-alpine:stable \
+        -x /scripts/install-tr-control.sh /scripts/install-tr-control-cn.sh /scripts/install-tr-control-gitee.sh; then
+        echo -e "${GREEN}Shellcheck: OK${NC}"
+    else
+        echo -e "${RED}Shellcheck: FAILED${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
+elif command -v shellcheck &> /dev/null; then
+    echo ""
+    echo "--- Shellcheck (local) ---"
+    if shellcheck -x release/*.sh; then
+        echo -e "${GREEN}Shellcheck: OK${NC}"
+    else
+        echo -e "${RED}Shellcheck: FAILED${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
+else
+    echo -e "${YELLOW}Warning: shellcheck not available (install or use Docker)${NC}"
+fi
+
+# Check bash syntax
+echo ""
+echo "--- Bash syntax check ---"
+for file in release/*.sh; do
+    if bash -n "$file"; then
+        echo -e "${GREEN}$file: OK${NC}"
+    else
+        echo -e "${RED}$file: SYNTAX ERROR${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
+done
+
+# Summary
+echo ""
+if [ $ERRORS -gt 0 ]; then
+    echo -e "${RED}=== Pre-push hook: $ERRORS error(s) found ===${NC}"
+    echo "Fix the errors above before pushing."
+    exit 1
+else
+    echo -e "${GREEN}=== Pre-push hook: All checks passed ===${NC}"
+    exit 0
+fi

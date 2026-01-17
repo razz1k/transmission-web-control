@@ -23,7 +23,7 @@ INSTALL_TYPE=-1
 SKIP_SEARCH=0
 AUTOINSTALL=0
 if which whoami 2>/dev/null; then
-	USER=`whoami`
+	USER=$(whoami)
 fi
 
 #==========================================================
@@ -116,10 +116,10 @@ initValues() {
 	# 判断是否指定了版本
 	if [ "$VERSION" != "" ]; then
 		# master 或 hash
-		if [ "$VERSION" = "master" -o ${#VERSION} = 40 ]; then
+		if [ "$VERSION" = "master" ] || [ ${#VERSION} = 40 ]; then
 			PACK_NAME="$VERSION.tar.gz"
 		# 是否指定了 v
-		elif [ ${VERSION:0:1} = "v" ]; then
+		elif [ "${VERSION:0:1}" = "v" ]; then
 			PACK_NAME="$VERSION.tar.gz"
 			# 因为解压出来的路径，版本号带有 'v' ，所以这里不能将 'v' 去掉
 			# VERSION=${VERSION:1}
@@ -154,7 +154,7 @@ findWebFolder() {
 	showLog "$MSG_SEARCHING_TR_FOLDER"
 		
 	# 判断 TRANSMISSION_WEB_HOME 环境变量是否被定义，如果是，直接用这个变量的值
-	if [ $TRANSMISSION_WEB_HOME ]; then
+	if [ "$TRANSMISSION_WEB_HOME" ]; then
 		showLog "$MSG_USE_WEB_HOME"
 		# 判断目录是否存在，如果不存在则创建 https://github.com/ronggang/transmission-web-control/issues/167
 		if [ ! -d "$TRANSMISSION_WEB_HOME" ]; then
@@ -162,13 +162,13 @@ findWebFolder() {
       fi
 		INSTALL_TYPE=2
 	else
-		if [ -d "$ROOT_FOLDER" -a -d "$ROOT_FOLDER/$HTML_FOLDER_NAME" ]; then
+		if [ -d "$ROOT_FOLDER" ] && [ -d "$ROOT_FOLDER/$HTML_FOLDER_NAME" ]; then
 			WEB_FOLDER="$ROOT_FOLDER/$HTML_FOLDER_NAME"
 			INSTALL_TYPE=1
 			showLog "$ROOT_FOLDER/$HTML_FOLDER_NAME $MSG_AVAILABLE."
 		else
 			showLog "$MSG_THE_SPECIFIED_DIRECTORY_DOES_NOT_EXIST"
-			ROOT_FOLDER=`find /usr /etc /home /root ./ -name "$HTML_FOLDER_NAME" -type d 2>/dev/null| grep "transmission/$HTML_FOLDER_NAME" | sed "s/\/$HTML_FOLDER_NAME$//g"`
+			ROOT_FOLDER=$(find /usr /etc /home /root ./ -name "$HTML_FOLDER_NAME" -type d 2>/dev/null| grep "transmission/$HTML_FOLDER_NAME" | sed "s/\/$HTML_FOLDER_NAME$//g")
 
 			if [ -d "$ROOT_FOLDER/$HTML_FOLDER_NAME" ]; then
 				WEB_FOLDER="$ROOT_FOLDER/$HTML_FOLDER_NAME"
@@ -197,7 +197,7 @@ install() {
 		installed
 
 	# 如果目录存在，则进行下载和更新动作
-	elif [ $INSTALL_TYPE = 1 -o $INSTALL_TYPE = 3 ]; then
+	elif [ $INSTALL_TYPE = 1 ] || [ $INSTALL_TYPE = 3 ]; then
 		# 下载安装包
 		download
 		# 创建web文件夹，从 20171014 之后，打包文件不包含web目录，直接打包为src下所有文件
@@ -236,17 +236,17 @@ install() {
 # 下载安装包
 download() {
 	# 切换到临时目录
-	cd "$TMP_FOLDER"
+	cd "$TMP_FOLDER" || exit 1
 	# 判断安装包文件是否已存在
 	if [ -f "$PACK_NAME" ]; then
 		if [ $AUTOINSTALL = 0 ]; then
 			echo -n "\n$PACK_NAME $MSG_PACK_IS_EXIST"
-			read flag
+			read -r flag
 		else
 			flag="y"
 		fi
 
-		if [ "$flag" = "y" -o "$flag" = "Y" ] ; then
+		if [ "$flag" = "y" ] || [ "$flag" = "Y" ] ; then
 			rm "$PACK_NAME"
 		else
 			showLog "$MSG_SIKP_DOWNLOAD"
@@ -256,9 +256,7 @@ download() {
 	showLog "$MSG_DOWNLOADING"
 	echo ""
 	# 下载的时候强制命名文件，以免被重定向后文件名发生改变
-	wget "$DOWNLOAD_URL" -O "$PACK_NAME" --no-check-certificate
-	# 判断是否下载成功
-	if [ $? -eq 0 ]; then
+	if wget "$DOWNLOAD_URL" -O "$PACK_NAME" --no-check-certificate; then
 		showLog "$MSG_DOWNLOAD_COMPLETE"
 		return 0
 	else 
@@ -275,7 +273,7 @@ installed() {
 
 # 输出日志
 showLog() {
-	TIME=`date "+%Y-%m-%d %H:%M:%S"`
+	TIME=$(date "+%Y-%m-%d %H:%M:%S")
 
 	case $2 in
 		"n")
@@ -295,7 +293,7 @@ unpack() {
 		tar -xzf "$PACK_NAME"
 	fi
 	# 如果之前没有安装过，则先将原系统的文件改为
-	if [ ! -f "$WEB_FOLDER/$ORG_INDEX_FILE" -a -f "$WEB_FOLDER/$INDEX_FILE" ]; then
+	if [ ! -f "$WEB_FOLDER/$ORG_INDEX_FILE" ] && [ -f "$WEB_FOLDER/$INDEX_FILE" ]; then
 		mv "$WEB_FOLDER/$INDEX_FILE" "$WEB_FOLDER/$ORG_INDEX_FILE"
 	fi
 
@@ -347,7 +345,7 @@ end() {
 # 显示主菜单
 showMainMenu() {
 	echo -n "$MSG_MAIN_MENU"
-	read flag
+	read -r flag
 	echo ""
 	case $flag in
 		1)
@@ -357,7 +355,7 @@ showMainMenu() {
 
 		2)
 			echo -n "$MSG_INPUT_VERSION"
-			read VERSION
+			read -r VERSION
 			main
 			;;
 		
@@ -375,7 +373,7 @@ showMainMenu() {
 
 		6)
 			echo -n "$MSG_INPUT_TR_FOLDER"
-			read input
+			read -r input
 			if [ -d "$input/$HTML_FOLDER_NAME" ]; then
 				ROOT_FOLDER="$input"
 				showLog "$MSG_SPECIFIED_FOLDER $input/$HTML_FOLDER_NAME"
@@ -389,8 +387,8 @@ showMainMenu() {
 		# 下载最新的代码
 		9)
 			echo -n "$MSG_MASTER_INSTALL_CONFIRM"
-			read input
-			if [ "$input" = "y" -o "$input" = "Y" ]; then
+			read -r input
+			if [ "$input" = "y" ] || [ "$input" = "Y" ]; then
 				VERSION="master"
 				main
 			else
@@ -428,7 +426,7 @@ getTransmissionPath() {
 				tr_version=$("$TRANSMISSION_REMOTE" -V 2>&1 | cut -d " " -f 2)
 				showLog "transmission version: $tr_version"
 				# 判断 TR 主版本号
-				if [ ${tr_version:0:1} = 2 ]; then
+				if [ "${tr_version:0:1}" = 2 ]; then
 					HTML_FOLDER_NAME="web"
 				else
 					HTML_FOLDER_NAME="public_html"
@@ -441,7 +439,7 @@ getTransmissionPath() {
 
 	if [ ! -d "$ROOT_FOLDER" ]; then
 		showLog "$MSG_FIND_WEB_FOLDER_FROM_PROCESS" "n"
-		infos=`ps -Aww -o command= | sed -r -e '/[t]ransmission-da/!d' -e 's/ .+//'`
+		infos=$(ps -Aww -o command= | sed -r -e '/[t]ransmission-da/!d' -e 's/ .+//')
 		if [ "$infos" != "" ]; then
 			echo " √"
 			search="bin/transmission-daemon"
@@ -461,24 +459,23 @@ getTransmissionPath() {
 getLatestReleases() {
 	# 优先使用curl，避免OpenWRT下wget得到的内容没有分行，导致grep输出结果失效
 	if [ -x "$(which curl)" ] ; then
-		VERSION=`curl -s $LAST_RELEASES | sed -r "s/.*tag_name(.*)target_commitish.*/\1/" | cut -d '"' -f 3`
+		VERSION=$(curl -s "$LAST_RELEASES" | sed -r "s/.*tag_name(.*)target_commitish.*/\1/" | cut -d '"' -f 3)
 	elif [ -x "$(which wget)" ]; then
-		VERSION=`wget -O - $LAST_RELEASES | sed -r "s/.*tag_name(.*)target_commitish.*/\1/" | cut -d '"' -f 3`
+		VERSION=$(wget -O - "$LAST_RELEASES" | sed -r "s/.*tag_name(.*)target_commitish.*/\1/" | cut -d '"' -f 3)
 	else
 		showLog "$MSG_WGET_NOT_FIND"
-		exit -1
+		exit 1
 	fi
 }
 
 # 检测 Transmission 进程是否存在
 checkTransmissionDaemon() {
 	showLog "$MSG_CHECK_TR_DAEMON"
-	ps -C transmission-daemon
-	if [ $? -ne 0 ]; then
+	if ! ps -C transmission-daemon; then
 		showLog "$MSG_CHECK_TR_DAEMON_FAILED"
 		echo -n "$MSG_TRY_START_TR"
-		read input
-		if [ "$input" = "y" -o "$input" = "Y" ] ; then
+		read -r input
+		if [ "$input" = "y" ] || [ "$input" = "Y" ] ; then
 			service transmission-daemon start
 		fi
 	else
@@ -520,9 +517,7 @@ downloadInstallScript() {
 		rm "$SCRIPT_NAME"
 	fi
 	showLog "$MSG_DOWNLOADING_INSTALL_SCRIPT"
-	wget "https://gitee.com/culturist/transmission-web-control/raw/master/release/$SCRIPT_NAME" --no-check-certificate
-	# 判断是否下载成功
-	if [ $? -eq 0 ]; then
+	if wget "https://gitee.com/culturist/transmission-web-control/raw/master/release/$SCRIPT_NAME" --no-check-certificate; then
 		showLog "$MSG_INSTALL_SCRIPT_DOWNLOAD_COMPLETE"
 	else 
 		showLog "$MSG_INSTALL_SCRIPT_DOWNLOAD_FAILED"
@@ -533,9 +528,9 @@ downloadInstallScript() {
 
 if [ "$USER" != 'root' ]; then
 	showLog "$MSG_NON_ROOT_USER" "n"
-	read input
-	if [ "$input" = "n" -o "$input" = "N" ]; then
-		exit -1
+	read -r input
+	if [ "$input" = "n" ] || [ "$input" = "N" ]; then
+		exit 1
 	fi
 fi
 

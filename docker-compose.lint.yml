@@ -1,0 +1,48 @@
+services:
+  shellcheck:
+    image: koalaman/shellcheck-alpine:stable
+    container_name: transmission-shellcheck
+    volumes:
+      - ./release:/scripts:ro
+    command: ["-x", "/scripts/install-tr-control.sh", "/scripts/install-tr-control-cn.sh", "/scripts/install-tr-control-gitee.sh"]
+    working_dir: /scripts
+
+  eslint:
+    image: node:18-alpine
+    container_name: transmission-eslint
+    volumes:
+      - .:/workspace:ro
+    working_dir: /workspace
+    command: ["sh", "-c", "npm install --silent && npm run lint:js"]
+
+  stylelint:
+    image: node:18-alpine
+    container_name: transmission-stylelint
+    volumes:
+      - .:/workspace:ro
+    working_dir: /workspace
+    command: ["sh", "-c", "npm install --silent && npm run lint:css"]
+
+  lint-all:
+    image: node:18-alpine
+    container_name: transmission-lint-all
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command:
+      - sh
+      - -c
+      - |
+        echo "=== Installing dependencies ==="
+        npm install --silent
+        
+        echo ""
+        echo "=== Running ESLint ==="
+        npm run lint:js || echo "ESLint: some issues found"
+        
+        echo ""
+        echo "=== Running Stylelint ==="
+        npm run lint:css || echo "Stylelint: some issues found"
+        
+        echo ""
+        echo "=== Linting complete ==="
