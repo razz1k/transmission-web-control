@@ -1,0 +1,29 @@
+{
+  "name": "transmission-web-control",
+  "version": "1.6.1",
+  "description": "Transmission Web Control - Enhanced web interface for Transmission",
+  "private": true,
+  "scripts": {
+    "test": "npm run test:lint && npm run test:shellcheck && npm run test:integration && npm run test:functional",
+    "test:lint": "./scripts/test-lint.sh",
+    "test:shellcheck": "shellcheck release/*.sh",
+    "test:integration": "./scripts/test-integration.sh",
+    "test:functional": "playwright test",
+    "lint:js": "eslint src/tr-web-control/script/*.js --ext .js",
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "lint:html": "html-validate src/*.html",
+    "lint:json": "jsonlint-cli src/tr-web-control/i18n/*.json src/tr-web-control/template/*.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@html-validate/eslint": "^8.7.0",
+    "eslint": "^8.55.0",
+    "html-validate": "^8.7.0",
+    "jsonlint-cli": "^0.3.0",
+    "stylelint": "^16.0.0",
+    "stylelint-config-standard": "^36.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

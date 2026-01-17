@@ -3,9 +3,20 @@
 *.vscode
 *.bat
 node_modules
-package.json
 Gruntfile.js
 .DS_Store
 testFile/
 NOTES.md
 PLAN.md
+.idea
+
+# Test artifacts
+playwright-report/
+test-results/
+.coverage/
+*.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
