@@ -32,7 +32,7 @@
 ## Предварительный просмотр интерфейса
 ![screenshots](https://user-images.githubusercontent.com/8065899/38598199-0d2e684c-3d8e-11e8-8b21-3cd1f3c7580a.png)
 
-## Методы установки и дополнительная информация, см.: [Русская справка](https://github.com/ronggang/transmission-web-control/wiki/Home-CN) 
+## Методы установки и дополнительная информация, см.: [справка](https://github.com/ronggang/transmission-web-control/wiki/Home-CN) 
 ### DSM7.0
 В этой версии требуется дополнительно изменить права доступа для реализации функции автоматического обновления
 Выполните следующие команды с правами `root`, где:
